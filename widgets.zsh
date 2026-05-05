@@ -1,13 +1,5 @@
 # Define custom ZLE widgets and the small helpers they share.
 
-function _yt-edit-command-line-in-nvim {
-    emulate -L zsh
-    local EDITOR=nvim
-    local VISUAL=nvim
-    zle edit-command-line
-}
-zle -N _yt-edit-command-line-in-nvim
-
 function _yt-kill-region-between {
     local start=$1
     local end=$2

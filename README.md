@@ -5,4 +5,4 @@
 * `ALT-BACKSPACE` – delete from cursor to word start
 * `CTRL-U` – delete from cursor to command start
 * `CTRL-W` – delete from cursor to path component start
-* `ALT-E` – edit command in nvim
+* `ALT-E` – edit command in `$EDITOR`
