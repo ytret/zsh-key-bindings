@@ -2,8 +2,11 @@
 
 typeset -ga _yt_arg_starts
 typeset -ga _yt_arg_ends
+typeset -g _yt_arg_cached_buffer=
 
 function _yt-parse-shell-arguments {
+    [[ $BUFFER == $_yt_arg_cached_buffer ]] && return
+
     _yt_arg_starts=()
     _yt_arg_ends=()
 
@@ -24,6 +27,8 @@ function _yt-parse-shell-arguments {
         ((pos += $#word))
         _yt_arg_ends+=$((pos - 1))
     done
+
+    _yt_arg_cached_buffer=$BUFFER
 }
 
 function _yt-shell-argument-bounds-left-of-cursor {
