@@ -3,111 +3,27 @@
 typeset -ga _yt_arg_starts
 typeset -ga _yt_arg_ends
 
-function _yt-shell-arguments-reset {
+function _yt-parse-shell-arguments {
     _yt_arg_starts=()
     _yt_arg_ends=()
-}
 
-function _yt-shell-arguments-add {
-    local start_char=$1
-    local end_char=$2
-
-    _yt_arg_starts+=$((start_char - 1))
-    _yt_arg_ends+=$end_char
-}
-
-function _yt-shell-argument-handle-unquoted-char {
-    local char=$1
-
-    if [[ $char == \\ ]]; then
-        reply=(escape)
-        return
-    fi
-
-    if [[ $char == "'" ]]; then
-        reply=(single-quote)
-        return
-    fi
-
-    if [[ $char == '"' ]]; then
-        reply=(double-quote)
-        return
-    fi
-
-    if [[ $char == [[:space:]] ]]; then
-        reply=(space)
-        return
-    fi
-
-    reply=(plain)
-}
-
-function _yt-parse-shell-arguments {
-    _yt-shell-arguments-reset
-
-    local i=1
+    local -a words
+    local word
+    local pos=1
     local length=$#BUFFER
-    local in_arg=0
-    local escaped=0
-    local quote=
-    local start_char=0
-    local char
 
-    while (( i <= length )); do
-        char=${BUFFER[i]}
+    words=("${(@z)BUFFER}")
 
-        if (( ! in_arg )) && [[ $char == [[:space:]] ]]; then
-            ((i++))
-            continue
-        fi
+    for word in "${words[@]}"; do
+        while (( pos <= length )) && [[ ${BUFFER[$pos]} == [[:space:]] ]]; do
+            ((pos++))
+        done
+        (( pos > length )) && break
 
-        if (( ! in_arg )); then
-            in_arg=1
-            start_char=$i
-        fi
-
-        if (( escaped )); then
-            escaped=0
-            ((i++))
-            continue
-        fi
-
-        case $quote in
-            '')
-                _yt-shell-argument-handle-unquoted-char "$char"
-                case $reply[1] in
-                    escape)
-                        escaped=1
-                        ;;
-                    single-quote)
-                        quote="'"
-                        ;;
-                    double-quote)
-                        quote='"'
-                        ;;
-                    space)
-                        _yt-shell-arguments-add "$start_char" $((i - 1))
-                        in_arg=0
-                        start_char=0
-                        ;;
-                esac
-                ;;
-            "'")
-                [[ $char == "'" ]] && quote=
-                ;;
-            '"')
-                if [[ $char == \\ ]]; then
-                    escaped=1
-                elif [[ $char == '"' ]]; then
-                    quote=
-                fi
-                ;;
-        esac
-
-        ((i++))
+        _yt_arg_starts+=$((pos - 1))
+        ((pos += $#word))
+        _yt_arg_ends+=$((pos - 1))
     done
-
-    (( in_arg )) && _yt-shell-arguments-add "$start_char" "$length"
 }
 
 function _yt-shell-argument-bounds-left-of-cursor {
