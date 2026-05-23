@@ -164,6 +164,15 @@ function _yt-backward-kill-path-component {
 zle -N _yt-backward-kill-path-component
 
 function _yt-sudo {
+    if [[ -z $BUFFER ]]; then
+        local last_cmd
+        last_cmd=$(fc -ln -1 2>/dev/null | tail -1)
+        if [[ -n $last_cmd ]]; then
+            BUFFER=$last_cmd
+            CURSOR=$#BUFFER
+        fi
+    fi
+
     _yt-parse-shell-arguments
 
     local i sep_end=-1 word
