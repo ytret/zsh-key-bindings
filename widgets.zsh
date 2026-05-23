@@ -98,6 +98,18 @@ function _yt-replace-left-buffer-with-parent-path {
     LBUFFER=$reply[1]
 }
 
+function _yt-clear-highlighting {
+    typeset -g _ZSH_HIGHLIGHT_PRIOR_BUFFER=
+    typeset -ga _zsh_highlight__highlighter_main_cache=()
+    typeset -ga _zsh_highlight__highlighter_brackets_cache=()
+    typeset -ga _zsh_highlight__highlighter_cursor_cache=()
+    region_highlight=( "${(@)region_highlight:#*memo=zsh-syntax-highlighting*}" )
+    _zsh_autosuggest_highlight_reset
+    POSTDISPLAY=
+    _zsh_autosuggest_fetch
+    _zsh_autosuggest_highlight_apply
+}
+
 function _yt-forward-shell-argument {
     local original_cursor=$CURSOR
 
@@ -154,12 +166,15 @@ function _yt-backward-kill-path-component {
     if (( CURSOR > 0 )) && [[ ${LBUFFER[CURSOR]} == [[:space:]] ]]; then
         if _yt-left-buffer-parent-path-after-trailing-space "$LBUFFER"; then
             LBUFFER=$reply[1]
+            _yt-clear-highlighting
             return
         fi
     fi
 
-    _yt-replace-left-buffer-with-parent-path && return
-    zle backward-kill-word
+    _yt-replace-left-buffer-with-parent-path || {
+        zle backward-kill-word
+    }
+    _yt-clear-highlighting
 }
 zle -N _yt-backward-kill-path-component
 
