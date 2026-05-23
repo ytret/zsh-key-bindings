@@ -7,4 +7,5 @@ bindkey '^[^D' _yt-kill-shell-argument
 bindkey '^[^?' _yt-kill-current-word
 bindkey '^U' backward-kill-line
 bindkey '^W' _yt-backward-kill-path-component
+bindkey '^[s' _yt-sudo
 bindkey '^[e' edit-command-line

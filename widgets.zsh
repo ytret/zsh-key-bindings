@@ -162,3 +162,61 @@ function _yt-backward-kill-path-component {
     zle backward-kill-word
 }
 zle -N _yt-backward-kill-path-component
+
+function _yt-sudo {
+    _yt-parse-shell-arguments
+
+    local i sep_end=-1 word
+
+    for (( i = $#_yt_arg_starts; i >= 1; i-- )); do
+        word="${BUFFER[_yt_arg_starts[i]+1,_yt_arg_ends[i]]}"
+        if (( _yt_arg_ends[i] < CURSOR + 1 )) && [[ $word == ('|'|'||'|'|&'|';'|'&&') ]]; then
+            sep_end=$_yt_arg_ends[i]
+            break
+        fi
+    done
+
+    if (( sep_end >= 0 )); then
+        local ins=$((sep_end + 1))
+        while (( ins <= $#BUFFER )) && [[ ${BUFFER[ins]} == [[:space:]] ]]; do
+            ((ins++))
+        done
+
+        local rest=$BUFFER[ins,-1]
+        local old_cursor=$CURSOR
+
+        if [[ $rest == sudo[[:space:]]* ]]; then
+            BUFFER=$BUFFER[1,ins-1]$BUFFER[ins+5,-1]
+            if (( old_cursor > ins + 3 )); then
+                CURSOR=$((old_cursor - 5))
+            elif (( old_cursor >= ins )); then
+                CURSOR=$((ins - 1))
+            fi
+        elif [[ $rest == sudo ]]; then
+            BUFFER=$BUFFER[1,ins-1]
+            if (( old_cursor > ins + 2 )); then
+                CURSOR=$((old_cursor - 4))
+            elif (( old_cursor >= ins )); then
+                CURSOR=$((ins - 1))
+            fi
+        else
+            BUFFER=$BUFFER[1,ins-1]"sudo "$BUFFER[ins,-1]
+            (( old_cursor >= ins )) && CURSOR=$((old_cursor + 5))
+        fi
+    else
+        local old_cursor=$CURSOR
+
+        if [[ $BUFFER == sudo[[:space:]]* ]]; then
+            BUFFER=$BUFFER[6,-1]
+            CURSOR=$((old_cursor - 5))
+            (( CURSOR < 0 )) && CURSOR=0
+        elif [[ $BUFFER == sudo ]]; then
+            BUFFER=""
+            CURSOR=0
+        else
+            BUFFER="sudo $BUFFER"
+            CURSOR=$((old_cursor + 5))
+        fi
+    fi
+}
+zle -N _yt-sudo
