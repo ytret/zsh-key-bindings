@@ -1,6 +1,6 @@
 # Bind custom widgets to the escape sequences used in this shell setup.
 
-bindkey '^[^F' _yt-forward-shell-argument
+bindkey '^[^F' yt-forward-shell-argument
 bindkey '^[^B' _yt-backward-shell-argument
 bindkey '^[^W' _yt-backward-kill-shell-argument
 bindkey '^[^D' _yt-kill-shell-argument

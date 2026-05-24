@@ -17,3 +17,11 @@ _yt_zle_line_pre_redraw() {
   _zsh_highlight
 }
 add-zle-hook-widget zle-line-pre-redraw _yt_zle_line_pre_redraw
+
+# Integrate with zsh-autosuggestions: pressing Ctrl-Alt-F accepts the next
+# shell argument from the suggestion (like fish's word-accept but
+# argument-aware).
+{
+  typeset -ga ZSH_AUTOSUGGEST_PARTIAL_ACCEPT_WIDGETS
+  ZSH_AUTOSUGGEST_PARTIAL_ACCEPT_WIDGETS+=(yt-forward-shell-argument)
+}

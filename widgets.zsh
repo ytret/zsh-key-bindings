@@ -110,7 +110,7 @@ function _yt-clear-highlighting {
     _zsh_autosuggest_highlight_apply
 }
 
-function _yt-forward-shell-argument {
+function yt-forward-shell-argument {
     local original_cursor=$CURSOR
 
     _yt-shell-argument-bounds-right-of-cursor || return
@@ -126,7 +126,7 @@ function _yt-forward-shell-argument {
 
     _yt-skip-forward-space
 }
-zle -N _yt-forward-shell-argument
+zle -N yt-forward-shell-argument
 
 function _yt-backward-shell-argument {
     local original_cursor=$CURSOR
