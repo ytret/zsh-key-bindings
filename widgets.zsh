@@ -162,6 +162,43 @@ function _yt-kill-current-word {
 }
 zle -N _yt-kill-current-word
 
+function _yt-werase {
+    (( CURSOR == 0 )) && return
+    local pos=$CURSOR
+    # Skip trailing whitespace
+    while (( pos > 0 )) && [[ ${BUFFER[$pos]} == ' ' ]]; do
+        (( pos-- ))
+    done
+    (( pos == 0 )) && { BUFFER=""; CURSOR=0; return }
+
+    local char=$BUFFER[$pos]
+
+    if [[ $char == [[:alnum:]] ]] || [[ $WORDCHARS == *"$char"* ]]; then
+        # Word char at cursor: use standard backward-kill-word
+        zle backward-kill-word
+        return
+    fi
+
+    # Separator at cursor: check what precedes it
+    local prev=${BUFFER[$pos-1]}
+    if [[ $prev == [[:alnum:]] ]] || [[ $WORDCHARS == *"$prev"* ]] || [[ $prev == ' ' ]]; then
+        # Preceded by word char or space: delete just this one separator
+        BUFFER=$BUFFER[1,$pos-1]$BUFFER[$CURSOR+1,-1]
+        CURSOR=$((pos - 1))
+    else
+        # Preceded by more separators: delete all consecutive separators
+        local start=$pos
+        while (( start > 0 )) && [[ ${BUFFER[$start]} != ' ' ]] \
+            && [[ ${BUFFER[$start]} != [[:alnum:]] ]] \
+            && [[ $WORDCHARS != *"${BUFFER[$start]}"* ]]; do
+            (( start-- ))
+        done
+        (( start > 0 )) && (( start++ ))
+        BUFFER=$BUFFER[1,$start-1]$BUFFER[$CURSOR+1,-1]
+        CURSOR=$((start - 1))
+    fi
+}
+
 function _yt-backward-kill-path-component {
     if (( CURSOR > 0 )) && [[ ${LBUFFER[CURSOR]} == [[:space:]] ]]; then
         if _yt-left-buffer-parent-path-after-trailing-space "$LBUFFER"; then
@@ -172,7 +209,7 @@ function _yt-backward-kill-path-component {
     fi
 
     _yt-replace-left-buffer-with-parent-path || {
-        zle backward-kill-word
+        _yt-werase
     }
     _yt-clear-highlighting
 }
