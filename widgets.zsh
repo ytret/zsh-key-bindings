@@ -43,12 +43,17 @@ function _yt-trim-trailing-space {
 function _yt-path-parent-prefix {
     local before_arg=$1
     local arg_prefix=$2
+    local trailed=$arg_prefix
 
     if [[ $arg_prefix == */ ]]; then
         arg_prefix=${arg_prefix%/}
     fi
 
-    [[ $arg_prefix == */* ]] || return 1
+    [[ $arg_prefix == */* ]] || {
+        [[ $trailed == */ ]] || return 1
+        reply=("$before_arg")
+        return 0
+    }
 
     reply=("${before_arg}${arg_prefix%/*}/")
 }
