@@ -220,6 +220,49 @@ function _yt-backward-kill-path-component {
 }
 zle -N _yt-backward-kill-path-component
 
+function _yt-list-directory {
+  local target_path
+  local index
+
+  _yt-parse-shell-arguments
+
+  for (( index = 1; index <= $#_yt_arg_starts; index++ )); do
+    local start=$_yt_arg_starts[index]
+    local end=$_yt_arg_ends[index]
+
+    if (( CURSOR > start && CURSOR <= end )); then
+      local -a words
+      words=("${(@z)BUFFER}")
+      target_path=$words[index]
+      target_path=${(e)target_path}
+      target_path=${~target_path}
+
+      if [[ -n $target_path && ! -e $target_path ]]; then
+        zle -I
+        echo "ls: $target_path: No such file or directory" >&2
+        return 0
+      fi
+      break
+    fi
+  done
+
+  zle -I
+
+  local -a ls_cmd
+  if [[ -n $aliases[ls] ]]; then
+    ls_cmd=("${(@z)aliases[ls]}")
+  else
+    ls_cmd=(ls)
+  fi
+
+  if [[ -n $target_path && -e $target_path ]]; then
+    "${ls_cmd[@]}" -- "$target_path"
+  else
+    "${ls_cmd[@]}" -- .
+  fi
+}
+zle -N _yt-list-directory
+
 function _yt-sudo {
     if [[ -z $BUFFER ]]; then
         local last_cmd
