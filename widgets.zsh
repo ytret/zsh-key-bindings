@@ -329,3 +329,88 @@ function _yt-sudo {
     fi
 }
 zle -N _yt-sudo
+
+# --- History-prefix search (fish-like Ctrl-P/Ctrl-N) ---
+
+typeset -g _yt_history_search_prefix=
+typeset -g _yt_history_search_cursor=0
+typeset -ga _yt_history_search_matches=()
+typeset -gi _yt_history_search_pos=0
+typeset -gi _yt_history_search_active=0
+
+function _yt-history-search-stale-prefix {
+    (( _yt_history_search_active )) || return 1
+    [[ $BUFFER == $_yt_history_search_prefix ]] && return 1
+    local match
+    for match in $_yt_history_search_matches; do
+        [[ $BUFFER == $match ]] && return 1
+    done
+    return 0
+}
+
+function _yt-history-search-reset {
+    _yt_history_search_prefix=
+    _yt_history_search_cursor=0
+    _yt_history_search_matches=()
+    _yt_history_search_pos=0
+    _yt_history_search_active=0
+}
+
+function _yt-history-search-backward {
+    if _yt-history-search-stale-prefix; then
+        _yt-history-search-reset
+    fi
+
+    if (( ! _yt_history_search_active )); then
+        _yt_history_search_active=1
+        _yt_history_search_prefix=$BUFFER
+        _yt_history_search_cursor=$CURSOR
+
+        _yt_history_search_matches=()
+        local key
+        typeset -A _seen
+        for (( key = HISTCMD; key >= 1; key-- )); do
+            local cmd=$history[$key]
+            [[ -n $cmd ]] || continue
+            if [[ $cmd == $_yt_history_search_prefix* ]] && [[ -z $_seen[$cmd] ]]; then
+                _seen[$cmd]=1
+                _yt_history_search_matches+=("$cmd")
+                (( $#_yt_history_search_matches >= 100 )) && break
+            fi
+        done
+        _yt_history_search_pos=0
+    fi
+
+    if (( _yt_history_search_pos < $#_yt_history_search_matches )); then
+        (( _yt_history_search_pos++ ))
+        BUFFER=$_yt_history_search_matches[_yt_history_search_pos]
+        CURSOR=$#BUFFER
+        POSTDISPLAY=
+        _zsh_autosuggest_fetch
+    fi
+}
+zle -N _yt-history-search-backward
+
+function _yt-history-search-forward {
+    if _yt-history-search-stale-prefix; then
+        _yt-history-search-reset
+        return 1
+    fi
+
+    (( _yt_history_search_active )) || return 1
+
+    if (( _yt_history_search_pos > 1 )); then
+        (( _yt_history_search_pos-- ))
+        BUFFER=$_yt_history_search_matches[_yt_history_search_pos]
+        CURSOR=$#BUFFER
+        POSTDISPLAY=
+        _zsh_autosuggest_fetch
+    else
+        BUFFER=$_yt_history_search_prefix
+        CURSOR=$_yt_history_search_cursor
+        POSTDISPLAY=
+        _zsh_autosuggest_fetch
+        _yt-history-search-reset
+    fi
+}
+zle -N _yt-history-search-forward

@@ -10,3 +10,8 @@ bindkey '^U' backward-kill-line
 bindkey '^W' _yt-backward-kill-path-component
 bindkey '^[s' _yt-sudo
 bindkey '^[e' edit-command-line
+
+bindkey '^P' _yt-history-search-backward
+bindkey '^N' _yt-history-search-forward
+bindkey '^[[A' _yt-history-search-backward
+bindkey '^[[B' _yt-history-search-forward
