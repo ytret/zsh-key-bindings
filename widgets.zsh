@@ -16,17 +16,6 @@ function _yt-skip-forward-space {
     done
 }
 
-function _yt-current-word-bounds {
-    (( CURSOR > 0 )) || return 1
-
-    zle backward-word
-    local word_start=$CURSOR
-    zle forward-word
-    local word_end=$CURSOR
-
-    reply=($word_start $word_end)
-}
-
 function _yt-trim-trailing-space {
     local text=$1
     local cursor=$#text
@@ -161,11 +150,15 @@ function _yt-kill-shell-argument {
 }
 zle -N _yt-kill-shell-argument
 
-function _yt-kill-current-word {
-    _yt-current-word-bounds || return
-    _yt-kill-region-between "$reply[1]" "$reply[2]"
+function _yt-backward-kill-word {
+    local saved_wordchars=$WORDCHARS
+    WORDCHARS='*?_-.[]~=&;!#$%^(){}<>'
+    zle .backward-kill-word
+    WORDCHARS=$saved_wordchars
+    _zsh_autosuggest_fetch
+    _zsh_autosuggest_highlight_apply
 }
-zle -N _yt-kill-current-word
+zle -N _yt-backward-kill-word
 
 function _yt-werase {
     (( CURSOR == 0 )) && return

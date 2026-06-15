@@ -20,7 +20,7 @@ Oh-My-Zsh plugin for shell-argument-aware key bindings (like fish's Alt-F/Alt-B/
 | `^[^F` | `yt-forward-shell-argument` | Jump forward to next argument |
 | `^[^B` | `_yt-backward-shell-argument` | Jump backward to previous argument |
 | `^[^D` | `_yt-kill-shell-argument` | Kill forward to argument end |
-| `^[^?` | `_yt-kill-current-word` | Kill current word |
+| `^[^?` | `_yt-backward-kill-word` | Kill word backward (vanilla WORDCHARS) |
 | `^U` | `backward-kill-line` | Kill to command start |
 | `^[s` | `_yt-sudo` | Toggle `sudo` prefix |
 | `^[e` | `edit-command-line` | Edit in $EDITOR |
@@ -58,6 +58,10 @@ This is the most complex widget. It has three tiers:
 ## `_yt-with-temporary-buffer` pattern
 
 Swaps `$BUFFER`/`$CURSOR`, calls a callback, then restores. Used by `_yt-left-buffer-parent-path-after-trailing-space` to make the argument parser see a trimmed version of the buffer. The callback's `$reply` persists after restoration.
+
+## Alt-Backspace logic (`_yt-backward-kill-word`)
+
+Delegates to zsh's built-in `backward-kill-word` using the **original default `WORDCHARS`** (`*?_-.[]~=&;!#$%^(){}<>`), then restores the plugin's modified `WORDCHARS` afterward. This isolates the word-kill operation from the plugin's `WORDCHARS` changes, giving true vanilla zsh word-kill behavior. Also calls `_zsh_autosuggest_fetch` and `_zsh_autosuggest_highlight_apply` to refresh autosuggestions after the kill.
 
 ## `_yt-clear-highlighting`
 
