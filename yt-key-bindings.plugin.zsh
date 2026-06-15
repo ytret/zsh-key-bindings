@@ -18,6 +18,11 @@ _yt_zle_line_pre_redraw() {
 }
 add-zle-hook-widget zle-line-pre-redraw _yt_zle_line_pre_redraw
 
+_yt_zle_line_init() {
+  _yt-history-search-reset
+}
+add-zle-hook-widget zle-line-init _yt_zle_line_init
+
 # Integrate with zsh-autosuggestions: pressing Ctrl-Alt-F accepts the next
 # shell argument from the suggestion (like fish's word-accept but
 # argument-aware).
