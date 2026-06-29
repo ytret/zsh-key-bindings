@@ -179,8 +179,8 @@ function _yt-werase {
 
     # Separator at cursor: check what precedes it
     local prev=${BUFFER[$pos-1]}
-    if [[ $prev == [[:alnum:]] ]] || [[ $WORDCHARS == *"$prev"* ]] || [[ $prev == ' ' ]]; then
-        # Preceded by word char or space: delete just this one separator
+    if (( pos == 1 )) || [[ $prev == [[:alnum:]] ]] || [[ $WORDCHARS == *"$prev"* ]] || [[ $prev == ' ' ]]; then
+        # At start, or preceded by word char or space: delete just this one separator
         BUFFER=$BUFFER[1,$pos-1]$BUFFER[$CURSOR+1,-1]
         CURSOR=$((pos - 1))
     else
@@ -191,9 +191,14 @@ function _yt-werase {
             && [[ $WORDCHARS != *"${BUFFER[$start]}"* ]]; do
             (( start-- ))
         done
-        (( start > 0 )) && (( start++ ))
-        BUFFER=$BUFFER[1,$start-1]$BUFFER[$CURSOR+1,-1]
-        CURSOR=$((start - 1))
+        if (( start > 0 )); then
+            (( start++ ))
+            BUFFER=$BUFFER[1,$start-1]$BUFFER[$CURSOR+1,-1]
+            CURSOR=$((start - 1))
+        else
+            BUFFER=$BUFFER[$CURSOR+1,-1]
+            CURSOR=0
+        fi
     fi
 }
 

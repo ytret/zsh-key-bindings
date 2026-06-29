@@ -72,5 +72,5 @@ Called after path deletions to flush zsh-syntax-highlighting caches and re-fetch
 - **Add a new binding**: define the widget function in `widgets.zsh`, register with `zle -N`, add `bindkey` in `bindings.zsh`.
 - **Add a new helper**: use a `_yt-` prefix, return values via `$reply`, callers check `|| return 1` on failure.
 - **Change deletion behavior**: use `_yt-kill-region-between` (not direct BUFFER manipulation) so killed text goes to the kill ring.
-- **Test Ctrl-W changes** with: `./` `../` `/` `foo/bar` `foo/bar/` `foo-bar` `foo` — verify path-aware and word-fallback both work.
+- **Test Ctrl-W changes** with: `./` `../` `/` `foo/bar` `foo/bar/` `foo-bar` `foo` `\` `''` `""` `"\` — verify path-aware and word-fallback both work. The last four tickle the edge case where all chars backward from cursor are separators.
 - **Word behavior depends on `WORDCHARS`** — removing chars makes them word separators in `backward-word`/`backward-kill-word`.
