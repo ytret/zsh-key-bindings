@@ -10,6 +10,12 @@ function _yt-kill-region-between {
     zle kill-region
 }
 
+function _yt-skip-forward-space {
+    while (( CURSOR < $#BUFFER )) && [[ ${BUFFER[CURSOR + 1]} == [[:space:]] ]]; do
+        ((CURSOR++))
+    done
+}
+
 function _yt-trim-trailing-space {
     local text=$1
     local cursor=$#text
@@ -111,6 +117,8 @@ function yt-forward-shell-argument {
     else
         CURSOR=$start
     fi
+
+    _yt-skip-forward-space
 }
 zle -N yt-forward-shell-argument
 

@@ -17,8 +17,6 @@ Oh-My-Zsh plugin for shell-argument-aware key bindings (like fish's Alt-F/Alt-B/
 |---|---|---|
 | `^W` | `_yt-backward-kill-path-component` | Kill path component backward (complex) |
 | `^[^W` | `_yt-backward-kill-shell-argument` | Kill backward to argument start |
-| `^[f`/`^[F` | `yt-forward-shell-argument` | Jump forward to next argument |
-| `^[b`/`^[B` | `_yt-backward-shell-argument` | Jump backward to previous argument |
 | `^[^F` | `yt-forward-shell-argument` | Jump forward to next argument |
 | `^[^B` | `_yt-backward-shell-argument` | Jump backward to previous argument |
 | `^[^D` | `_yt-kill-shell-argument` | Kill forward to argument end |
