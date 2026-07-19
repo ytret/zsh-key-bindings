@@ -69,6 +69,13 @@ Delegates to zsh's built-in `backward-kill-word` using the **original default `W
 
 Called after path deletions to flush zsh-syntax-highlighting caches and re-fetch autosuggestions. Prevents stale highlights.
 
+## Lessons for agents
+
+- **Reproduce against the widget functions directly** — source `shell-arguments.zsh` + `widgets.zsh` in `zsh -f`, set `BUFFER`/`CURSOR`, call the widget, assert on `$CURSOR`. This isolates widget logic from keybindings in seconds.
+- **Don't build PTY/expect harnesses for fish/zsh** to compare reference behavior — it's slow, flaky (fish waits ~10s on terminal queries in expect), and unnecessary. State expected cursor positions from the bug report, verify with direct function calls.
+- **Don't get sidetracked testing the fix** — fix first, verify with a tight table of cases (`|cat /foo` → `cat| /foo` → `cat /foo|`), then stop.
+- **Check test expectations before blaming code** — `${(@z)BUFFER}` strips quotes, so quoted args shift positions; a "FAIL" may be a wrong expectation, not a bug.
+
 ## How to make changes
 
 - **Add a new binding**: define the widget function in `widgets.zsh`, register with `zle -N`, add `bindkey` in `bindings.zsh`.
