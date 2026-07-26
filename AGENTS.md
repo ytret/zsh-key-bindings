@@ -70,34 +70,40 @@ Called after path deletions to flush zsh-syntax-highlighting caches and re-fetch
 ## Lessons for agents
 
 - **Reproduce against the widget functions directly** — source `shell-arguments.zsh` + `widgets.zsh` in `zsh -f`, set `BUFFER`/`CURSOR`, call the widget, assert on `$CURSOR`. This isolates widget logic from keybindings in seconds.
+- **Add `timeout` to every test command** — a buggy widget can loop forever inside zsh. `bash(..., timeout: 5)` saves 2 minutes of waiting.
 - **Don't build PTY/expect harnesses for fish/zsh** to compare reference behavior — it's slow, flaky (fish waits ~10s on terminal queries in expect), and unnecessary. State expected cursor positions from the bug report, verify with direct function calls.
 - **Don't get sidetracked testing the fix** — fix first, verify with a tight table of cases (`|cat /foo` → `cat| /foo` → `cat /foo|`), then stop.
 - **Check test expectations before blaming code** — `${(@z)BUFFER}` strips quotes, so quoted args shift positions; a "FAIL" may be a wrong expectation, not a bug.
 
 ## `_yt-forward-word` / `_yt-backward-word`
 
-These widgets move the cursor one "word" forward or backward. A word is defined by character class, with one important asymmetry:
+These widgets split the buffer into alternating alnum/non-alnum chunks via `_yt-split-word-chunks`, then traverse those chunks. The chunk model gives forward and backward a single ground truth, eliminating the ad-hoc class branching that had previously led to edge-case bugs.
 
-- **Forward**: space glues to what's on its **right**. E.g. `foo --bar` breaks into `foo`, `<space>--`, `bar`. So `|foo --bar` → `foo| --bar` → `foo --|bar` → `foo --bar|`.
-- **Backward**: space glues to what's on its **left**. E.g. `foo --bar` breaks into `bar`, `--`, `foo<space>`. So `foo --bar|` → `foo --|bar` → `foo |--bar` → `|foo --bar`.
+### Chunking (`_yt-split-word-chunks`)
 
-This asymmetry is intentional: it ensures that hitting Alt-F then Alt-B (or vice versa) from the middle of a word returns to the same position. The forward and backward functions are therefore not mirrors of each other.
+Builds alternating runs of `[[:alnum:]]` and not-`[[:alnum:]]`, storing their 0-indexed boundaries in `_yt_chunk_starts` / `_yt_chunk_ends`. Each chunk's start is inclusive, end is exclusive. Results are cached keyed on `$BUFFER`.
 
-The character taxonomy used by these widgets:
-- **alnum** (`[[:alnum:]]`) — letters and digits
-- **wordchars** — characters in `$WORDCHARS` (this plugin removes `-`, `_`, `+`)
-- **space** (`[[:space:]]`)
-- **separator** — everything else (punctuation not in WORDCHARS, like `-`)
+Examples:
+```
+foo --bar  →  [(0,3), (3,6), (6,9)]
+cat /foo   →  [(0,3), (3,5), (5,8)]
+  foo      →  [(0,2), (2,5)]
+--foo      →  [(0,2), (2,5)]
+```
 
-**Forward** uses two branches: alnum vs everything else (space, wordchars, and separators all travel together as one non-alnum chunk).
+The chunk model naturally handles the space-gluing asymmetry:
+- **Forward** moves to each chunk's **end** (space on the right: ` --` is one chunk).
+- **Backward** moves to each non-alnum chunk's **visual start** (skip leading spaces: ` --` visually starts at the first `-`, not the space). This gives left-gluing of spaces.
 
-**Backward** uses four branches to implement left-gluing of spaces:
-- alnum → skip alnum only
-- space → skip spaces, then skip alnum to its left
-- wordchars → skip wordchars, then skip spaces to its left
-- separator → skip separators only (stops at space or wordchars)
+### `_yt-forward-word`
 
-Common test cases to run after any change to these widgets:
+Finds the first chunk whose end > CURSOR, sets CURSOR to that end. Simple linear scan.
+
+### `_yt-backward-word`
+
+Finds the last chunk whose start < CURSOR. Computes that chunk's *visual start* (skip leading spaces for non-alnum chunks). If CURSOR is already at the visual start, moves to the previous chunk's visual start. If already at the first chunk, falls back to its raw start.
+
+### Canonical test cases
 
 ```zsh
 # Forward from start
@@ -107,7 +113,7 @@ Common test cases to run after any change to these widgets:
 
 # Backward from end
 foo --bar|  →  foo --|bar  →  foo |--bar  →  |foo --bar
-cat /foo|   →  cat /|foo   →  cat| /foo   →  |cat /foo
+cat /foo|   →  cat /|foo   →  cat |/foo   →  |cat /foo
 foo-bar|    →  foo-|bar    →  foo|-bar    →  |foo-bar
 ```
 
