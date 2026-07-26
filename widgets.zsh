@@ -169,7 +169,22 @@ function _yt-ensure-chunks-reach {
 }
 
 function _yt-split-word-chunks {
-    [[ $BUFFER == $_yt_chunk_cached_buffer ]] && { _yt-ensure-chunks-reach $CURSOR; return }
+    if [[ $BUFFER == $_yt_chunk_cached_buffer ]]; then
+        # Cache hit, but cursor may have jumped far from the covered range.
+        # If so, discard and re-seed — extending piecemeal would be too slow.
+        if (( _yt_chunk_left_char <= CURSOR && _yt_chunk_right_char >= CURSOR )); then
+            _yt-ensure-chunks-reach $CURSOR
+            return
+        fi
+        local gap
+        if (( CURSOR < _yt_chunk_left_char )); then
+            gap=$(( _yt_chunk_left_char - CURSOR ))
+        else
+            gap=$(( CURSOR - _yt_chunk_right_char ))
+        fi
+        (( gap > 200 )) || { _yt-ensure-chunks-reach $CURSOR; return }
+        # Gap too large — fall through to rebuild.
+    fi
 
     _yt_chunk_starts=()
     _yt_chunk_ends=()
