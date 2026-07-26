@@ -131,18 +131,42 @@ function _yt-split-word-chunks {
     done
 }
 
+# Binary search: first chunk whose end > cursor.
+function _yt-chunk-index-forward {
+    local lo=1 hi=$#_yt_chunk_ends mid
+    while (( lo < hi )); do
+        mid=$(( (lo + hi) / 2 ))
+        if (( _yt_chunk_ends[mid] <= $1 )); then
+            lo=$(( mid + 1 ))
+        else
+            hi=$mid
+        fi
+    done
+    (( lo <= $#_yt_chunk_ends && _yt_chunk_ends[lo] > $1 )) || return 1
+    reply=($lo)
+}
+
+# Binary search: last chunk whose start < cursor.
+function _yt-chunk-index-backward {
+    local lo=1 hi=$#_yt_chunk_starts mid
+    while (( lo < hi )); do
+        mid=$(( (lo + hi + 1) / 2 ))
+        if (( _yt_chunk_starts[mid] < $1 )); then
+            lo=$mid
+        else
+            hi=$(( mid - 1 ))
+        fi
+    done
+    (( lo >= 1 && _yt_chunk_starts[lo] < $1 )) || return 1
+    reply=($lo)
+}
+
 function _yt-backward-word {
     (( CURSOR == 0 )) && return
     _yt-split-word-chunks
 
-    # Find the last chunk whose start is strictly before the cursor.
-    # (When CURSOR sits exactly on a chunk boundary, this picks the
-    # chunk to the left of the cursor.)
-    local i
-    for (( i = $#_yt_chunk_ends; i >= 1; i-- )); do
-        (( _yt_chunk_starts[i] < CURSOR )) && break
-    done
-    (( i == 0 )) && return
+    _yt-chunk-index-backward $CURSOR || return
+    local i=$reply[1]
 
     local raw_start=$_yt_chunk_starts[i]
     local raw_end=$_yt_chunk_ends[i]
@@ -179,13 +203,8 @@ function _yt-forward-word {
     (( CURSOR == $#BUFFER )) && return
     _yt-split-word-chunks
 
-    local i
-    for (( i = 1; i <= $#_yt_chunk_ends; i++ )); do
-        if (( _yt_chunk_ends[i] > CURSOR )); then
-            CURSOR=$_yt_chunk_ends[i]
-            return
-        fi
-    done
+    _yt-chunk-index-forward $CURSOR || return
+    CURSOR=$_yt_chunk_ends[reply[1]]
 }
 zle -N _yt-forward-word
 
