@@ -126,13 +126,7 @@ function _yt-forward-word {
             fi
             ((CURSOR++))
         done
-        (( CURSOR == $#BUFFER )) && return
-        next=${BUFFER[CURSOR + 1]}
-        if [[ $next == [[:alnum:]] ]]; then
-            class=alnum
-        else
-            class=wordchars
-        fi
+        return
     fi
 
     while (( CURSOR < $#BUFFER )); do
