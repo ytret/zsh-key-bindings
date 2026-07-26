@@ -110,15 +110,43 @@ function _yt-backward-word {
     local prev=${BUFFER[CURSOR]}
 
     if [[ $prev == [[:alnum:]] ]]; then
+        # Alnum: skip alnum chars only.
         while (( CURSOR > 0 )); do
             prev=${BUFFER[CURSOR]}
             [[ $prev == [[:alnum:]] ]] || break
             ((CURSOR--))
         done
-    else
+    elif [[ $prev == [[:space:]] ]]; then
+        # Space: glue to the alnum word on the left.
         while (( CURSOR > 0 )); do
             prev=${BUFFER[CURSOR]}
-            [[ $prev == [[:alnum:]] ]] && break
+            [[ $prev == [[:space:]] ]] || break
+            ((CURSOR--))
+        done
+        while (( CURSOR > 0 )); do
+            prev=${BUFFER[CURSOR]}
+            [[ $prev == [[:alnum:]] ]] || break
+            ((CURSOR--))
+        done
+    elif [[ $WORDCHARS == *"$prev"* ]]; then
+        # Wordchars: skip wordchars, then skip trailing spaces.
+        while (( CURSOR > 0 )); do
+            prev=${BUFFER[CURSOR]}
+            [[ $WORDCHARS == *"$prev"* ]] || break
+            ((CURSOR--))
+        done
+        while (( CURSOR > 0 )); do
+            prev=${BUFFER[CURSOR]}
+            [[ $prev == [[:space:]] ]] || break
+            ((CURSOR--))
+        done
+    else
+        # Separator (not alnum, space, or wordchars): skip only separators.
+        while (( CURSOR > 0 )); do
+            prev=${BUFFER[CURSOR]}
+            if [[ $prev == [[:alnum:]] ]] || [[ $prev == [[:space:]] ]] || [[ $WORDCHARS == *"$prev"* ]]; then
+                break
+            fi
             ((CURSOR--))
         done
     fi
