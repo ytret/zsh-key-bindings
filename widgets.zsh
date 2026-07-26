@@ -108,36 +108,20 @@ function _yt-backward-word {
     (( CURSOR == 0 )) && return
 
     local prev=${BUFFER[CURSOR]}
-    local class
 
     if [[ $prev == [[:alnum:]] ]]; then
-        class=alnum
-    elif [[ $WORDCHARS == *"$prev"* ]]; then
-        class=wordchars
-    else
-        class=separator
-    fi
-
-    if [[ $class == separator ]]; then
         while (( CURSOR > 0 )); do
             prev=${BUFFER[CURSOR]}
-            if [[ $prev == [[:alnum:]] ]] || [[ $WORDCHARS == *"$prev"* ]]; then
-                break
-            fi
+            [[ $prev == [[:alnum:]] ]] || break
             ((CURSOR--))
         done
-        return
+    else
+        while (( CURSOR > 0 )); do
+            prev=${BUFFER[CURSOR]}
+            [[ $prev == [[:alnum:]] ]] && break
+            ((CURSOR--))
+        done
     fi
-
-    while (( CURSOR > 0 )); do
-        prev=${BUFFER[CURSOR]}
-        if [[ $class == alnum ]]; then
-            [[ $prev == [[:alnum:]] ]] || break
-        else
-            [[ $WORDCHARS == *"$prev"* ]] || break
-        fi
-        ((CURSOR--))
-    done
 }
 zle -N _yt-backward-word
 
@@ -145,36 +129,20 @@ function _yt-forward-word {
     (( CURSOR == $#BUFFER )) && return
 
     local next=${BUFFER[CURSOR + 1]}
-    local class
 
     if [[ $next == [[:alnum:]] ]]; then
-        class=alnum
-    elif [[ $WORDCHARS == *"$next"* ]]; then
-        class=wordchars
-    else
-        class=separator
-    fi
-
-    if [[ $class == separator ]]; then
         while (( CURSOR < $#BUFFER )); do
             next=${BUFFER[CURSOR + 1]}
-            if [[ $next == [[:alnum:]] ]] || [[ $WORDCHARS == *"$next"* ]]; then
-                break
-            fi
+            [[ $next == [[:alnum:]] ]] || break
             ((CURSOR++))
         done
-        return
+    else
+        while (( CURSOR < $#BUFFER )); do
+            next=${BUFFER[CURSOR + 1]}
+            [[ $next == [[:alnum:]] ]] && break
+            ((CURSOR++))
+        done
     fi
-
-    while (( CURSOR < $#BUFFER )); do
-        next=${BUFFER[CURSOR + 1]}
-        if [[ $class == alnum ]]; then
-            [[ $next == [[:alnum:]] ]] || break
-        else
-            [[ $WORDCHARS == *"$next"* ]] || break
-        fi
-        ((CURSOR++))
-    done
 }
 zle -N _yt-forward-word
 
