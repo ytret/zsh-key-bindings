@@ -107,25 +107,43 @@ function _yt-clear-highlighting {
 function _yt-forward-word {
     (( CURSOR == $#BUFFER )) && return
 
-    local char=${BUFFER[CURSOR + 1]}
+    local next=${BUFFER[CURSOR + 1]}
+    local class
 
-    if [[ $char == [[:alnum:]] ]] || [[ $WORDCHARS == *"$char"* ]]; then
-        while (( CURSOR < $#BUFFER )); do
-            local next=${BUFFER[CURSOR + 1]}
-            if [[ $next != [[:alnum:]] ]] && [[ $WORDCHARS != *"$next"* ]]; then
-                break
-            fi
-            ((CURSOR++))
-        done
+    if [[ $next == [[:alnum:]] ]]; then
+        class=alnum
+    elif [[ $WORDCHARS == *"$next"* ]]; then
+        class=wordchars
     else
+        class=separator
+    fi
+
+    if [[ $class == separator ]]; then
         while (( CURSOR < $#BUFFER )); do
-            local next=${BUFFER[CURSOR + 1]}
+            next=${BUFFER[CURSOR + 1]}
             if [[ $next == [[:alnum:]] ]] || [[ $WORDCHARS == *"$next"* ]]; then
                 break
             fi
             ((CURSOR++))
         done
+        (( CURSOR == $#BUFFER )) && return
+        next=${BUFFER[CURSOR + 1]}
+        if [[ $next == [[:alnum:]] ]]; then
+            class=alnum
+        else
+            class=wordchars
+        fi
     fi
+
+    while (( CURSOR < $#BUFFER )); do
+        next=${BUFFER[CURSOR + 1]}
+        if [[ $class == alnum ]]; then
+            [[ $next == [[:alnum:]] ]] || break
+        else
+            [[ $WORDCHARS == *"$next"* ]] || break
+        fi
+        ((CURSOR++))
+    done
 }
 zle -N _yt-forward-word
 
