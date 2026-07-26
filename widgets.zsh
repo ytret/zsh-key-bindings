@@ -104,6 +104,43 @@ function _yt-clear-highlighting {
     _zsh_autosuggest_highlight_apply
 }
 
+function _yt-backward-word {
+    (( CURSOR == 0 )) && return
+
+    local prev=${BUFFER[CURSOR]}
+    local class
+
+    if [[ $prev == [[:alnum:]] ]]; then
+        class=alnum
+    elif [[ $WORDCHARS == *"$prev"* ]]; then
+        class=wordchars
+    else
+        class=separator
+    fi
+
+    if [[ $class == separator ]]; then
+        while (( CURSOR > 0 )); do
+            prev=${BUFFER[CURSOR]}
+            if [[ $prev == [[:alnum:]] ]] || [[ $WORDCHARS == *"$prev"* ]]; then
+                break
+            fi
+            ((CURSOR--))
+        done
+        return
+    fi
+
+    while (( CURSOR > 0 )); do
+        prev=${BUFFER[CURSOR]}
+        if [[ $class == alnum ]]; then
+            [[ $prev == [[:alnum:]] ]] || break
+        else
+            [[ $WORDCHARS == *"$prev"* ]] || break
+        fi
+        ((CURSOR--))
+    done
+}
+zle -N _yt-backward-word
+
 function _yt-forward-word {
     (( CURSOR == $#BUFFER )) && return
 
