@@ -104,31 +104,109 @@ function _yt-clear-highlighting {
     _zsh_autosuggest_highlight_apply
 }
 
-# Shared chunk cache used by _yt-forward-word / _yt-backward-word.
+# Lazy chunk cache.  On first access after a buffer change, we seed a small
+# window (~20 chunks) around the cursor and extend on demand when traversal
+# hits the edges.  This keeps per-keystroke cost low even on huge prompts.
 typeset -ga _yt_chunk_starts
 typeset -ga _yt_chunk_ends
 typeset -g _yt_chunk_cached_buffer=
+typeset -gi _yt_chunk_left_char=0
+typeset -gi _yt_chunk_right_char=0
+
+function _yt-chunk-scan-one-right {
+    local pos=$1
+    local len=$#BUFFER
+    (( pos >= len )) && return 1
+
+    local class=alnum
+    [[ ${BUFFER[pos+1]} == [[:alnum:]] ]] || class=non-alnum
+
+    local end=$pos
+    while (( end < len )); do
+        if [[ $class == alnum ]]; then
+            [[ ${BUFFER[end+1]} == [[:alnum:]] ]] || break
+        else
+            [[ ${BUFFER[end+1]} == [[:alnum:]] ]] && break
+        fi
+        ((end++))
+    done
+
+    _yt_chunk_starts+=($pos)
+    _yt_chunk_ends+=($end)
+    _yt_chunk_right_char=$end
+}
+
+function _yt-chunk-scan-one-left {
+    local pos=$1
+    (( pos <= 0 )) && return 1
+
+    local class=alnum
+    [[ ${BUFFER[pos]} == [[:alnum:]] ]] || class=non-alnum
+
+    local start=$((pos - 1))
+    while (( start > 0 )); do
+        if [[ $class == alnum ]]; then
+            [[ ${BUFFER[start]} == [[:alnum:]] ]] || break
+        else
+            [[ ${BUFFER[start]} == [[:alnum:]] ]] && break
+        fi
+        ((start--))
+    done
+
+    _yt_chunk_starts=($start $_yt_chunk_starts[@])
+    _yt_chunk_ends=($pos $_yt_chunk_ends[@])
+    _yt_chunk_left_char=$start
+}
+
+function _yt-ensure-chunks-reach {
+    local target=$1
+    while (( target >= _yt_chunk_right_char && _yt_chunk_right_char < $#BUFFER )); do
+        _yt-chunk-scan-one-right $_yt_chunk_right_char || break
+    done
+    while (( target <= _yt_chunk_left_char && _yt_chunk_left_char > 0 )); do
+        _yt-chunk-scan-one-left $_yt_chunk_left_char || break
+    done
+}
 
 function _yt-split-word-chunks {
-    [[ $BUFFER == $_yt_chunk_cached_buffer ]] && return
+    [[ $BUFFER == $_yt_chunk_cached_buffer ]] && { _yt-ensure-chunks-reach $CURSOR; return }
 
     _yt_chunk_starts=()
     _yt_chunk_ends=()
     _yt_chunk_cached_buffer=$BUFFER
+    _yt_chunk_left_char=$CURSOR
+    _yt_chunk_right_char=$CURSOR
 
-    local len=$#BUFFER i=1 start=0
+    local len=$#BUFFER
     (( len == 0 )) && return
 
-    while (( i <= len )); do
-        if [[ ${BUFFER[i]} == [[:alnum:]] ]]; then
-            while (( i <= len )) && [[ ${BUFFER[i]} == [[:alnum:]] ]]; do ((i++)); done
-        else
-            while (( i <= len )) && ! [[ ${BUFFER[i]} == [[:alnum:]] ]]; do ((i++)); done
-        fi
-        _yt_chunk_starts+=($start)
-        _yt_chunk_ends+=($((i - 1)))
-        start=$((i - 1))
+    local left_count=0 right_count=0 target=20 cursor=$CURSOR
+
+    # Scan right for up to target/2 chunks.
+    while (( _yt_chunk_right_char < len && right_count < target / 2 )); do
+        _yt-chunk-scan-one-right $_yt_chunk_right_char || break
+        ((right_count++))
     done
+
+    # Scan left for up to target/2 chunks.
+    while (( _yt_chunk_left_char > 0 && left_count < target / 2 )); do
+        _yt-chunk-scan-one-left $_yt_chunk_left_char || break
+        ((left_count++))
+    done
+
+    # Fill remaining quota on whichever side has more content.
+    while (( _yt_chunk_right_char < len && (right_count + left_count) < target )); do
+        _yt-chunk-scan-one-right $_yt_chunk_right_char || break
+        ((right_count++))
+    done
+    while (( _yt_chunk_left_char > 0 && (right_count + left_count) < target )); do
+        _yt-chunk-scan-one-left $_yt_chunk_left_char || break
+        ((left_count++))
+    done
+
+    # If we built at least one chunk, tighten _yt_chunk_left_char to
+    # the actual first chunk start.
+    (( $#_yt_chunk_starts > 0 )) && _yt_chunk_left_char=$_yt_chunk_starts[1]
 }
 
 # Binary search: first chunk whose end > cursor.
@@ -165,6 +243,7 @@ function _yt-backward-word {
     (( CURSOR == 0 )) && return
     _yt-split-word-chunks
 
+    _yt-ensure-chunks-reach $CURSOR
     _yt-chunk-index-backward $CURSOR || return
     local i=$reply[1]
 
@@ -183,6 +262,7 @@ function _yt-backward-word {
         CURSOR=$vs
     elif (( i > 1 )); then
         # Already at the visual start — move to the previous chunk.
+        _yt-ensure-chunks-reach $((_yt_chunk_starts[i] - 1))
         local prev_start=$_yt_chunk_starts[i-1]
         local prev_end=$_yt_chunk_ends[i-1]
         local prev_vs=$prev_start
@@ -203,6 +283,7 @@ function _yt-forward-word {
     (( CURSOR == $#BUFFER )) && return
     _yt-split-word-chunks
 
+    _yt-ensure-chunks-reach $((CURSOR + 1))
     _yt-chunk-index-forward $CURSOR || return
     CURSOR=$_yt_chunk_ends[reply[1]]
 }

@@ -83,6 +83,8 @@ These widgets split the buffer into alternating alnum/non-alnum chunks via `_yt-
 
 Builds alternating runs of `[[:alnum:]]` and not-`[[:alnum:]]`, storing their 0-indexed boundaries in `_yt_chunk_starts` / `_yt_chunk_ends`. Each chunk's start is inclusive, end is exclusive. Results are cached keyed on `$BUFFER`.
 
+**Lazy loading**: On cache miss, only ~20 chunks around the cursor are built initially (`_yt_chunk_left_char` / `_yt_chunk_right_char` track the covered range). `_yt-ensure-chunks-reach` extends the cache on demand when traversal hits an edge. The per-widget helpers `_yt-chunk-index-forward` / `_yt-chunk-index-backward` use binary search over the (possibly partial) arrays.
+
 Examples:
 ```
 foo --bar  →  [(0,3), (3,6), (6,9)]
@@ -97,11 +99,11 @@ The chunk model naturally handles the space-gluing asymmetry:
 
 ### `_yt-forward-word`
 
-Finds the first chunk whose end > CURSOR, sets CURSOR to that end. Simple linear scan.
+Calls `_yt-ensure-chunks-reach $((CURSOR + 1))` to guarantee a chunk covering the forward direction, then binary-searches for the first chunk whose end > CURSOR. Sets CURSOR to that end.
 
 ### `_yt-backward-word`
 
-Finds the last chunk whose start < CURSOR. Computes that chunk's *visual start* (skip leading spaces for non-alnum chunks). If CURSOR is already at the visual start, moves to the previous chunk's visual start. If already at the first chunk, falls back to its raw start.
+Calls `_yt-ensure-chunks-reach $CURSOR` to guarantee a chunk covering the backward direction, then binary-searches for the last chunk whose start < CURSOR. Computes that chunk's *visual start* (skip leading spaces for non-alnum chunks). If CURSOR is already at the visual start, extends further left with `_yt-ensure-chunks-reach` and moves to the previous chunk's visual start. If already at the first chunk, falls back to its raw start.
 
 ### Canonical test cases
 
