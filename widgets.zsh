@@ -104,73 +104,88 @@ function _yt-clear-highlighting {
     _zsh_autosuggest_highlight_apply
 }
 
+# Shared chunk cache used by _yt-forward-word / _yt-backward-word.
+typeset -ga _yt_chunk_starts
+typeset -ga _yt_chunk_ends
+typeset -g _yt_chunk_cached_buffer=
+
+function _yt-split-word-chunks {
+    [[ $BUFFER == $_yt_chunk_cached_buffer ]] && return
+
+    _yt_chunk_starts=()
+    _yt_chunk_ends=()
+    _yt_chunk_cached_buffer=$BUFFER
+
+    local len=$#BUFFER i=1 start=0
+    (( len == 0 )) && return
+
+    while (( i <= len )); do
+        if [[ ${BUFFER[i]} == [[:alnum:]] ]]; then
+            while (( i <= len )) && [[ ${BUFFER[i]} == [[:alnum:]] ]]; do ((i++)); done
+        else
+            while (( i <= len )) && ! [[ ${BUFFER[i]} == [[:alnum:]] ]]; do ((i++)); done
+        fi
+        _yt_chunk_starts+=($start)
+        _yt_chunk_ends+=($((i - 1)))
+        start=$((i - 1))
+    done
+}
+
 function _yt-backward-word {
     (( CURSOR == 0 )) && return
+    _yt-split-word-chunks
 
-    local prev=${BUFFER[CURSOR]}
+    # Find the last chunk whose start is strictly before the cursor.
+    # (When CURSOR sits exactly on a chunk boundary, this picks the
+    # chunk to the left of the cursor.)
+    local i
+    for (( i = $#_yt_chunk_ends; i >= 1; i-- )); do
+        (( _yt_chunk_starts[i] < CURSOR )) && break
+    done
+    (( i == 0 )) && return
 
-    if [[ $prev == [[:alnum:]] ]]; then
-        # Alnum: skip alnum chars only.
-        while (( CURSOR > 0 )); do
-            prev=${BUFFER[CURSOR]}
-            [[ $prev == [[:alnum:]] ]] || break
-            ((CURSOR--))
+    local raw_start=$_yt_chunk_starts[i]
+    local raw_end=$_yt_chunk_ends[i]
+    local vs=$raw_start
+
+    # Non-alnum chunk: skip leading spaces to find the visual start.
+    if [[ ${BUFFER[vs+1]} != [[:alnum:]] ]]; then
+        while (( vs < raw_end )) && [[ ${BUFFER[vs+1]} == [[:space:]] ]]; do
+            ((vs++))
         done
-    elif [[ $prev == [[:space:]] ]]; then
-        # Space: glue to the alnum word on the left.
-        while (( CURSOR > 0 )); do
-            prev=${BUFFER[CURSOR]}
-            [[ $prev == [[:space:]] ]] || break
-            ((CURSOR--))
-        done
-        while (( CURSOR > 0 )); do
-            prev=${BUFFER[CURSOR]}
-            [[ $prev == [[:alnum:]] ]] || break
-            ((CURSOR--))
-        done
-    elif [[ $WORDCHARS == *"$prev"* ]]; then
-        # Wordchars: skip wordchars, then skip trailing spaces.
-        while (( CURSOR > 0 )); do
-            prev=${BUFFER[CURSOR]}
-            [[ $WORDCHARS == *"$prev"* ]] || break
-            ((CURSOR--))
-        done
-        while (( CURSOR > 0 )); do
-            prev=${BUFFER[CURSOR]}
-            [[ $prev == [[:space:]] ]] || break
-            ((CURSOR--))
-        done
+    fi
+
+    if (( CURSOR > vs )); then
+        CURSOR=$vs
+    elif (( i > 1 )); then
+        # Already at the visual start — move to the previous chunk.
+        local prev_start=$_yt_chunk_starts[i-1]
+        local prev_end=$_yt_chunk_ends[i-1]
+        local prev_vs=$prev_start
+        if [[ ${BUFFER[prev_vs+1]} != [[:alnum:]] ]]; then
+            while (( prev_vs < prev_end )) && [[ ${BUFFER[prev_vs+1]} == [[:space:]] ]]; do
+                ((prev_vs++))
+            done
+        fi
+        CURSOR=$prev_vs
     else
-        # Separator (not alnum, space, or wordchars): skip only separators.
-        while (( CURSOR > 0 )); do
-            prev=${BUFFER[CURSOR]}
-            if [[ $prev == [[:alnum:]] ]] || [[ $prev == [[:space:]] ]] || [[ $WORDCHARS == *"$prev"* ]]; then
-                break
-            fi
-            ((CURSOR--))
-        done
+        # At the first chunk — fall back to its raw start.
+        CURSOR=$raw_start
     fi
 }
 zle -N _yt-backward-word
 
 function _yt-forward-word {
     (( CURSOR == $#BUFFER )) && return
+    _yt-split-word-chunks
 
-    local next=${BUFFER[CURSOR + 1]}
-
-    if [[ $next == [[:alnum:]] ]]; then
-        while (( CURSOR < $#BUFFER )); do
-            next=${BUFFER[CURSOR + 1]}
-            [[ $next == [[:alnum:]] ]] || break
-            ((CURSOR++))
-        done
-    else
-        while (( CURSOR < $#BUFFER )); do
-            next=${BUFFER[CURSOR + 1]}
-            [[ $next == [[:alnum:]] ]] && break
-            ((CURSOR++))
-        done
-    fi
+    local i
+    for (( i = 1; i <= $#_yt_chunk_ends; i++ )); do
+        if (( _yt_chunk_ends[i] > CURSOR )); then
+            CURSOR=$_yt_chunk_ends[i]
+            return
+        fi
+    done
 }
 zle -N _yt-forward-word
 
