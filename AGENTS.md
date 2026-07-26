@@ -74,6 +74,43 @@ Called after path deletions to flush zsh-syntax-highlighting caches and re-fetch
 - **Don't get sidetracked testing the fix** — fix first, verify with a tight table of cases (`|cat /foo` → `cat| /foo` → `cat /foo|`), then stop.
 - **Check test expectations before blaming code** — `${(@z)BUFFER}` strips quotes, so quoted args shift positions; a "FAIL" may be a wrong expectation, not a bug.
 
+## `_yt-forward-word` / `_yt-backward-word`
+
+These widgets move the cursor one "word" forward or backward. A word is defined by character class, with one important asymmetry:
+
+- **Forward**: space glues to what's on its **right**. E.g. `foo --bar` breaks into `foo`, `<space>--`, `bar`. So `|foo --bar` → `foo| --bar` → `foo --|bar` → `foo --bar|`.
+- **Backward**: space glues to what's on its **left**. E.g. `foo --bar` breaks into `bar`, `--`, `foo<space>`. So `foo --bar|` → `foo --|bar` → `foo |--bar` → `|foo --bar`.
+
+This asymmetry is intentional: it ensures that hitting Alt-F then Alt-B (or vice versa) from the middle of a word returns to the same position. The forward and backward functions are therefore not mirrors of each other.
+
+The character taxonomy used by these widgets:
+- **alnum** (`[[:alnum:]]`) — letters and digits
+- **wordchars** — characters in `$WORDCHARS` (this plugin removes `-`, `_`, `+`)
+- **space** (`[[:space:]]`)
+- **separator** — everything else (punctuation not in WORDCHARS, like `-`)
+
+**Forward** uses two branches: alnum vs everything else (space, wordchars, and separators all travel together as one non-alnum chunk).
+
+**Backward** uses four branches to implement left-gluing of spaces:
+- alnum → skip alnum only
+- space → skip spaces, then skip alnum to its left
+- wordchars → skip wordchars, then skip spaces to its left
+- separator → skip separators only (stops at space or wordchars)
+
+Common test cases to run after any change to these widgets:
+
+```zsh
+# Forward from start
+|foo --bar  →  foo| --bar  →  foo --|bar  →  foo --bar|
+|cat /foo   →  cat| /foo   →  cat /|foo   →  cat /foo|
+|foo-bar    →  foo|-bar    →  foo-|bar    →  foo-bar|
+
+# Backward from end
+foo --bar|  →  foo --|bar  →  foo |--bar  →  |foo --bar
+cat /foo|   →  cat /|foo   →  cat| /foo   →  |cat /foo
+foo-bar|    →  foo-|bar    →  foo|-bar    →  |foo-bar
+```
+
 ## How to make changes
 
 - **Add a new binding**: define the widget function in `widgets.zsh`, register with `zle -N`, add `bindkey` in `bindings.zsh`.
