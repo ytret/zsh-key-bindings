@@ -23,10 +23,17 @@ _yt_zle_line_init() {
 }
 add-zle-hook-widget zle-line-init _yt_zle_line_init
 
-# Integrate with zsh-autosuggestions: pressing Ctrl-Alt-F accepts the next
-# shell argument from the suggestion (like fish's word-accept but
-# argument-aware).
+# Integrate with zsh-autosuggestions.
+#
+# Ctrl-Alt-F accepts the next shell argument from the suggestion (like
+# fish's word-accept but argument-aware).
+# Alt-F (forward-word) accepts the next word from the suggestion.
 {
   typeset -ga ZSH_AUTOSUGGEST_PARTIAL_ACCEPT_WIDGETS
-  ZSH_AUTOSUGGEST_PARTIAL_ACCEPT_WIDGETS+=(yt-forward-shell-argument)
+  ZSH_AUTOSUGGEST_PARTIAL_ACCEPT_WIDGETS+=(yt-forward-shell-argument _yt-forward-word)
+
+  # _yt-forward-word is not auto-discovered by _zsh_autosuggest_bind_widgets
+  # because widgets starting with _ are in the ignore list.
+  # Manually bind it so Alt-F can accept partial suggestions.
+  _zsh_autosuggest_bind_widget _yt-forward-word partial_accept
 }
