@@ -304,6 +304,17 @@ function _yt-forward-word {
 }
 zle -N _yt-forward-word
 
+function _yt-forward-kill-word {
+    (( CURSOR == $#BUFFER )) && return
+    _yt-split-word-chunks
+
+    _yt-ensure-chunks-reach $((CURSOR + 1))
+    _yt-chunk-index-forward $CURSOR || return
+    _yt-kill-region-between "$CURSOR" "$_yt_chunk_ends[reply[1]]"
+    _yt-clear-highlighting
+}
+zle -N _yt-forward-kill-word
+
 function yt-forward-shell-argument {
     local original_cursor=$CURSOR
 
