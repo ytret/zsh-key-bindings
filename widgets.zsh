@@ -351,12 +351,44 @@ function _yt-kill-shell-argument {
 zle -N _yt-kill-shell-argument
 
 function _yt-backward-kill-word {
-    local saved_wordchars=$WORDCHARS
-    WORDCHARS='*?_-.[]~=&;!#$%^(){}<>'
-    zle .backward-kill-word
-    WORDCHARS=$saved_wordchars
-    _zsh_autosuggest_fetch
-    _zsh_autosuggest_highlight_apply
+    (( CURSOR == 0 )) && return
+    _yt-split-word-chunks
+
+    _yt-ensure-chunks-reach $CURSOR
+    _yt-chunk-index-backward $CURSOR || return
+    local i=$reply[1]
+
+    local raw_start=$_yt_chunk_starts[i]
+    local raw_end=$_yt_chunk_ends[i]
+    local vs=$raw_start
+
+    # Non-alnum chunk: skip leading spaces to find the visual start.
+    if [[ ${BUFFER[vs+1]} != [[:alnum:]] ]]; then
+        while (( vs < raw_end )) && [[ ${BUFFER[vs+1]} == [[:space:]] ]]; do
+            ((vs++))
+        done
+    fi
+
+    if (( CURSOR > vs )); then
+        _yt-kill-region-between "$vs" "$CURSOR"
+    elif (( i > 1 )); then
+        # Already at the visual start — kill from previous chunk's visual start.
+        _yt-ensure-chunks-reach $((raw_start - 1))
+        local prev_start=$_yt_chunk_starts[i-1]
+        local prev_end=$_yt_chunk_ends[i-1]
+        local prev_vs=$prev_start
+        if [[ ${BUFFER[prev_vs+1]} != [[:alnum:]] ]]; then
+            while (( prev_vs < prev_end )) && [[ ${BUFFER[prev_vs+1]} == [[:space:]] ]]; do
+                ((prev_vs++))
+            done
+        fi
+        _yt-kill-region-between "$prev_vs" "$CURSOR"
+    else
+        # At the first chunk — kill from its raw start.
+        _yt-kill-region-between "$raw_start" "$CURSOR"
+    fi
+
+    _yt-clear-highlighting
 }
 zle -N _yt-backward-kill-word
 
