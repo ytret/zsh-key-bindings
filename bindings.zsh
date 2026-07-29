@@ -3,6 +3,7 @@
 bindkey '^[l' _yt-list-directory
 bindkey '^[b' _yt-backward-word
 bindkey '^[f' _yt-forward-word
+bindkey '^[d' _yt-forward-kill-word
 bindkey '^[^F' yt-forward-shell-argument
 bindkey '^[^B' _yt-backward-shell-argument
 bindkey '^[^W' _yt-backward-kill-shell-argument
