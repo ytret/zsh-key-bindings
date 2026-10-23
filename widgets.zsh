@@ -29,8 +29,8 @@ function _yt-trim-trailing-space {
     reply=("${text[1,cursor]}" "$cursor")
 }
 
-function _yt-path-parent-prefix {
-    local before_arg=$1
+function _yt-path-parent-boundary {
+    local start=$1
     local arg_prefix=$2
     local trailed=$arg_prefix
 
@@ -40,11 +40,12 @@ function _yt-path-parent-prefix {
 
     [[ $arg_prefix == */* ]] || {
         [[ $trailed == */ ]] || return 1
-        reply=("$before_arg")
+        reply=($start)
         return 0
     }
 
-    reply=("${before_arg}${arg_prefix%/*}/")
+    local parent=${arg_prefix%/*}/
+    reply=($((start + $#parent)))
 }
 
 function _yt-with-temporary-buffer {
@@ -75,33 +76,37 @@ function _yt-left-buffer-parent-path-after-trailing-space {
     _yt-with-temporary-buffer "$trimmed_left" "$trimmed_cursor" _yt-shell-argument-bounds-left-of-cursor || return 1
 
     local start=$reply[1]
-    local before_arg=${trimmed_left[1,start]}
     local arg_prefix=${trimmed_left[start + 1,-1]}
 
-    _yt-path-parent-prefix "$before_arg" "$arg_prefix" || return 1
+    _yt-path-parent-boundary "$start" "$arg_prefix" || return 1
 }
 
-function _yt-replace-left-buffer-with-parent-path {
+function _yt-left-buffer-parent-path {
     _yt-shell-argument-bounds-left-of-cursor || return 1
 
     local start=$reply[1]
-    local before_arg=${LBUFFER[1,start]}
     local arg_prefix=${LBUFFER[start + 1,-1]}
 
-    _yt-path-parent-prefix "$before_arg" "$arg_prefix" || return 1
-    LBUFFER=$reply[1]
+    _yt-path-parent-boundary "$start" "$arg_prefix" || return 1
+}
+
+function _yt-refresh-autosuggestions {
+    (( $+functions[_zsh_autosuggest_fetch] )) && _zsh_autosuggest_fetch
+    (( $+functions[_zsh_autosuggest_highlight_apply] )) && _zsh_autosuggest_highlight_apply
+    return 0
 }
 
 function _yt-clear-highlighting {
-    typeset -g _ZSH_HIGHLIGHT_PRIOR_BUFFER=
-    typeset -ga _zsh_highlight__highlighter_main_cache=()
-    typeset -ga _zsh_highlight__highlighter_brackets_cache=()
-    typeset -ga _zsh_highlight__highlighter_cursor_cache=()
-    region_highlight=( "${(@)region_highlight:#*memo=zsh-syntax-highlighting*}" )
-    _zsh_autosuggest_highlight_reset
+    if (( $+functions[_zsh_highlight] )); then
+        typeset -g _ZSH_HIGHLIGHT_PRIOR_BUFFER=
+        typeset -ga _zsh_highlight__highlighter_main_cache=()
+        typeset -ga _zsh_highlight__highlighter_brackets_cache=()
+        typeset -ga _zsh_highlight__highlighter_cursor_cache=()
+        region_highlight=( "${(@)region_highlight:#*memo=zsh-syntax-highlighting*}" )
+    fi
+    (( $+functions[_zsh_autosuggest_highlight_reset] )) && _zsh_autosuggest_highlight_reset
     POSTDISPLAY=
-    _zsh_autosuggest_fetch
-    _zsh_autosuggest_highlight_apply
+    _yt-refresh-autosuggestions
 }
 
 # Lazy chunk cache.  On first access after a buffer change, we seed a small
@@ -189,8 +194,21 @@ function _yt-split-word-chunks {
     _yt_chunk_starts=()
     _yt_chunk_ends=()
     _yt_chunk_cached_buffer=$BUFFER
-    _yt_chunk_left_char=$CURSOR
-    _yt_chunk_right_char=$CURSOR
+    local seed=$CURSOR
+    if (( seed < $#BUFFER )); then
+        local seed_alnum=0
+        [[ ${BUFFER[seed+1]} == [[:alnum:]] ]] && seed_alnum=1
+        while (( seed > 0 )); do
+            if [[ ${BUFFER[seed]} == [[:alnum:]] ]]; then
+                (( seed_alnum )) || break
+            else
+                (( seed_alnum )) && break
+            fi
+            ((seed--))
+        done
+    fi
+    _yt_chunk_left_char=$seed
+    _yt_chunk_right_char=$seed
 
     local len=$#BUFFER
     (( len == 0 )) && return
@@ -260,6 +278,8 @@ function _yt-backward-word {
 
     _yt-ensure-chunks-reach $CURSOR
     _yt-chunk-index-backward $CURSOR || return
+    _yt-ensure-chunks-reach $((_yt_chunk_starts[reply[1]] - 1))
+    _yt-chunk-index-backward $CURSOR || return
     local i=$reply[1]
 
     local raw_start=$_yt_chunk_starts[i]
@@ -277,7 +297,6 @@ function _yt-backward-word {
         CURSOR=$vs
     elif (( i > 1 )); then
         # Already at the visual start — move to the previous chunk.
-        _yt-ensure-chunks-reach $((_yt_chunk_starts[i] - 1))
         local prev_start=$_yt_chunk_starts[i-1]
         local prev_end=$_yt_chunk_ends[i-1]
         local prev_vs=$prev_start
@@ -367,6 +386,8 @@ function _yt-backward-kill-word {
 
     _yt-ensure-chunks-reach $CURSOR
     _yt-chunk-index-backward $CURSOR || return
+    _yt-ensure-chunks-reach $((_yt_chunk_starts[reply[1]] - 1))
+    _yt-chunk-index-backward $CURSOR || return
     local i=$reply[1]
 
     local raw_start=$_yt_chunk_starts[i]
@@ -384,7 +405,6 @@ function _yt-backward-kill-word {
         _yt-kill-region-between "$vs" "$CURSOR"
     elif (( i > 1 )); then
         # Already at the visual start — kill from previous chunk's visual start.
-        _yt-ensure-chunks-reach $((raw_start - 1))
         local prev_start=$_yt_chunk_starts[i-1]
         local prev_end=$_yt_chunk_ends[i-1]
         local prev_vs=$prev_start
@@ -410,7 +430,7 @@ function _yt-werase {
     while (( pos > 0 )) && [[ ${BUFFER[$pos]} == ' ' ]]; do
         (( pos-- ))
     done
-    (( pos == 0 )) && { BUFFER=""; CURSOR=0; return }
+    (( pos == 0 )) && { _yt-kill-region-between 0 "$CURSOR"; return }
 
     local char=$BUFFER[$pos]
 
@@ -424,8 +444,7 @@ function _yt-werase {
     local prev=${BUFFER[$pos-1]}
     if (( pos == 1 )) || [[ $prev == [[:alnum:]] ]] || [[ $WORDCHARS == *"$prev"* ]] || [[ $prev == ' ' ]]; then
         # At start, or preceded by word char or space: delete just this one separator
-        BUFFER=$BUFFER[1,$pos-1]$BUFFER[$CURSOR+1,-1]
-        CURSOR=$((pos - 1))
+        _yt-kill-region-between "$((pos - 1))" "$CURSOR"
     else
         # Preceded by more separators: delete all consecutive separators
         local start=$pos
@@ -436,11 +455,9 @@ function _yt-werase {
         done
         if (( start > 0 )); then
             (( start++ ))
-            BUFFER=$BUFFER[1,$start-1]$BUFFER[$CURSOR+1,-1]
-            CURSOR=$((start - 1))
+            _yt-kill-region-between "$((start - 1))" "$CURSOR"
         else
-            BUFFER=$BUFFER[$CURSOR+1,-1]
-            CURSOR=0
+            _yt-kill-region-between 0 "$CURSOR"
         fi
     fi
 }
@@ -448,59 +465,141 @@ function _yt-werase {
 function _yt-backward-kill-path-component {
     if (( CURSOR > 0 )) && [[ ${LBUFFER[CURSOR]} == [[:space:]] ]]; then
         if _yt-left-buffer-parent-path-after-trailing-space "$LBUFFER"; then
-            LBUFFER=$reply[1]
+            _yt-kill-region-between "$reply[1]" "$CURSOR"
             _yt-clear-highlighting
             return
         fi
     fi
 
-    _yt-replace-left-buffer-with-parent-path || {
+    if _yt-left-buffer-parent-path; then
+        _yt-kill-region-between "$reply[1]" "$CURSOR"
+    else
         _yt-werase
-    }
+    fi
     _yt-clear-highlighting
 }
 zle -N _yt-backward-kill-path-component
 
-function _yt-list-directory {
-  local target_path
-  local index
+# Decode one raw shell word, never evaluating shell code or glob patterns.
+# On failure reply contains a short explanation for the widget to display.
+function _yt-resolve-path {
+    emulate -L zsh
+    setopt extendedglob
+    local _yt_path_raw=$1 _yt_path_result='' _yt_path_quote='' _yt_path_ch _yt_path_next _yt_path_name
+    local _yt_path_pos=1 _yt_path_length=$#_yt_path_raw _yt_path_end
 
-  _yt-parse-shell-arguments
-
-  for (( index = 1; index <= $#_yt_arg_starts; index++ )); do
-    local start=$_yt_arg_starts[index]
-    local end=$_yt_arg_ends[index]
-
-    if (( CURSOR > start && CURSOR <= end )); then
-      local -a words
-      words=("${(@z)BUFFER}")
-      target_path=$words[index]
-      target_path=${(e)target_path}
-      target_path=${~target_path}
-
-      if [[ -n $target_path && ! -e $target_path ]]; then
-        zle -I
-        echo "ls: $target_path: No such file or directory" >&2
-        return 0
-      fi
-      break
+    if [[ $_yt_path_raw == '~' || $_yt_path_raw == '~/'* ]]; then
+        _yt_path_result=$HOME
+        _yt_path_pos=2
+    elif [[ $_yt_path_raw == ('~'*|'='*) ]]; then
+        reply=('unsupported path expansion')
+        return 1
     fi
-  done
+    while (( _yt_path_pos <= _yt_path_length )); do
+        _yt_path_ch=${_yt_path_raw[_yt_path_pos]}
+        _yt_path_next=${_yt_path_raw[_yt_path_pos+1]}
+        if [[ $_yt_path_quote == "'" ]]; then
+            if [[ $_yt_path_ch == "'" ]]; then
+                _yt_path_quote=''
+            else
+                _yt_path_result+=$_yt_path_ch
+            fi
+        elif [[ $_yt_path_ch == '\' ]]; then
+            if (( _yt_path_pos == _yt_path_length )); then
+                reply=('unfinished escape')
+                return 1
+            fi
+            # In double quotes a backslash only escapes these shell characters.
+            if [[ $_yt_path_quote == '"' && $_yt_path_next != ('$'|'`'|'"'|'\'|$'\n') ]]; then
+                _yt_path_result+=$_yt_path_ch
+            else
+                [[ $_yt_path_next != $'\n' ]] && _yt_path_result+=$_yt_path_next
+                ((_yt_path_pos++))
+            fi
+        elif [[ $_yt_path_ch == '"' ]]; then
+            [[ $_yt_path_quote == '"' ]] && _yt_path_quote='' || _yt_path_quote='"'
+        elif [[ -z $_yt_path_quote && $_yt_path_ch == "'" ]]; then
+            _yt_path_quote="'"
+        elif [[ $_yt_path_ch == '`' || $_yt_path_ch == '$' && $_yt_path_next == '(' ]] ||
+             [[ -z $_yt_path_quote && $_yt_path_ch == ('<'|'>') && $_yt_path_next == '(' ]]; then
+            reply=('shell substitutions are not supported')
+            return 1
+        elif [[ $_yt_path_ch == '$' ]]; then
+            _yt_path_name=''
+            if [[ $_yt_path_next == '{' ]]; then
+                _yt_path_end=$((_yt_path_pos + 2))
+                while (( _yt_path_end <= _yt_path_length )) && [[ ${_yt_path_raw[_yt_path_end]} != '}' ]]; do
+                    _yt_path_name+=${_yt_path_raw[_yt_path_end]}
+                    ((_yt_path_end++))
+                done
+                if (( _yt_path_end > _yt_path_length )); then
+                    reply=('unfinished parameter expansion')
+                    return 1
+                fi
+                _yt_path_pos=$_yt_path_end
+            else
+                while (( _yt_path_pos < _yt_path_length )) && [[ ${_yt_path_raw[_yt_path_pos+1]} == [a-zA-Z0-9_] ]]; do
+                    ((_yt_path_pos++))
+                    _yt_path_name+=${_yt_path_raw[_yt_path_pos]}
+                done
+            fi
+            if [[ $_yt_path_next != '{' && ${_yt_path_raw[_yt_path_pos+1]} == (':'|'[') ]]; then
+                reply=('unsupported parameter modifier')
+                return 1
+            fi
+            if [[ $_yt_path_name != [a-zA-Z_][a-zA-Z0-9_]# ]] ||
+               [[ ${parameters[$_yt_path_name]} == *array* ]]; then
+                reply=('unsupported parameter expansion')
+                return 1
+            fi
+            _yt_path_result+=${(P)_yt_path_name}
+        elif [[ -z $_yt_path_quote && $_yt_path_ch == ([[:space:]]|';'|'&'|'|'|'('|')'|'<'|'>'|'{'|'}') ]]; then
+            reply=('unsupported shell syntax in path')
+            return 1
+        else
+            _yt_path_result+=$_yt_path_ch
+        fi
+        ((_yt_path_pos++))
+    done
+    if [[ -n $_yt_path_quote ]]; then
+        reply=('unfinished quote')
+        return 1
+    fi
+    reply=("$_yt_path_result")
+}
 
-  zle -I
+function _yt-list-directory {
+    local _yt_list_target_path=.
+    local _yt_list_index _yt_list_start _yt_list_end
 
-  local -a ls_cmd
-  if [[ -n $aliases[ls] ]]; then
-    ls_cmd=("${(@z)aliases[ls]}")
-  else
-    ls_cmd=(ls)
-  fi
+    _yt-parse-shell-arguments
+    for (( _yt_list_index = 1; _yt_list_index <= $#_yt_arg_starts; _yt_list_index++ )); do
+        _yt_list_start=$_yt_arg_starts[_yt_list_index]
+        _yt_list_end=$_yt_arg_ends[_yt_list_index]
+        if (( CURSOR > _yt_list_start && CURSOR <= _yt_list_end )); then
+            if ! _yt-resolve-path "${BUFFER[_yt_list_start+1,_yt_list_end]}"; then
+                zle -I
+                print -ru2 -- "ls: $reply[1]"
+                return 0
+            fi
+            _yt_list_target_path=$reply[1]
+            break
+        fi
+    done
 
-  if [[ -n $target_path && -e $target_path ]]; then
-    "${ls_cmd[@]}" -- "$target_path"
-  else
-    "${ls_cmd[@]}" -- .
-  fi
+    zle -I
+    if [[ ! -e $_yt_list_target_path && ! -L $_yt_list_target_path ]]; then
+        print -ru2 -- "ls: $_yt_list_target_path: No such file or directory"
+        return 0
+    fi
+
+    local -a _yt_list_ls_cmd
+    if [[ -n $aliases[ls] ]]; then
+        _yt_list_ls_cmd=("${(@z)aliases[ls]}")
+    else
+        _yt_list_ls_cmd=(ls)
+    fi
+    "${_yt_list_ls_cmd[@]}" -- "$_yt_list_target_path"
 }
 zle -N _yt-list-directory
 
@@ -520,7 +619,7 @@ function _yt-sudo {
 
     for (( i = $#_yt_arg_starts; i >= 1; i-- )); do
         word="${BUFFER[_yt_arg_starts[i]+1,_yt_arg_ends[i]]}"
-        if (( _yt_arg_ends[i] < CURSOR + 1 )) && [[ $word == ('|'|'||'|'|&'|';'|'&&') ]]; then
+        if (( _yt_arg_ends[i] < CURSOR + 1 )) && [[ $word == ('|'|'||'|'|&'|';'|'&&'|'&'|$'\n') ]]; then
             sep_end=$_yt_arg_ends[i]
             break
         fi
@@ -627,7 +726,7 @@ function _yt-history-search-backward {
         BUFFER=$_yt_history_search_matches[_yt_history_search_pos]
         CURSOR=$#BUFFER
         POSTDISPLAY=
-        _zsh_autosuggest_fetch
+        _yt-refresh-autosuggestions
     fi
 }
 zle -N _yt-history-search-backward
@@ -645,12 +744,12 @@ function _yt-history-search-forward {
         BUFFER=$_yt_history_search_matches[_yt_history_search_pos]
         CURSOR=$#BUFFER
         POSTDISPLAY=
-        _zsh_autosuggest_fetch
+        _yt-refresh-autosuggestions
     else
         BUFFER=$_yt_history_search_prefix
         CURSOR=$_yt_history_search_cursor
         POSTDISPLAY=
-        _zsh_autosuggest_fetch
+        _yt-refresh-autosuggestions
         _yt-history-search-reset
     fi
 }
