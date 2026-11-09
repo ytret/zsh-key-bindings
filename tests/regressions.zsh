@@ -131,6 +131,22 @@ function navigation {
 navigation 'foo --bar' 3,6,9 6,4,0
 navigation 'cat /foo' 3,5,8 5,4,0
 navigation 'foo-bar' 3,4,7 4,3,0
+navigation 'foo * bar' 3,5,9 6,4,0
+navigation 'foo  **  bar' 3,7,12 9,5,0
+navigation 'foo bar' 3,7 4,0
+navigation '  foo' 5 2,0
+navigation 'foo *  ' 3,5,7,7 4,0
+navigation 'foo   ' 3,6,6 0
+navigation '   ' 3,3 0
+navigation '' 0 0
+# Start within trailing spaces, with a fresh cache or one built elsewhere.
+for seed in 0 6; do
+    BUFFER='foo *   bar'; CURSOR=$seed; _yt_chunk_cached_buffer='invalid'
+    _yt-split-word-chunks
+    CURSOR=6
+    _yt-forward-word
+    eq $CURSOR 11 'forward from punctuation trailing spaces'
+done
 for word in foobar '------'; do
     BUFFER=$word; CURSOR=3; _yt_chunk_cached_buffer='invalid'
     _yt-forward-word; eq $CURSOR 6 'inside run forward'
@@ -145,7 +161,14 @@ for (( step=1; step<=40; step++ )); do
     _yt-forward-word
     eq $CURSOR $((2 * step - step % 2)) 'forward cache extension'
 done
+# Cross lazy cache edges while skipping punctuation's trailing spaces.
+BUFFER=${(pl:1600::a * :)''}; CURSOR=0
+for (( step=1; step<=40; step++ )); do
+    _yt-forward-word
+    eq $CURSOR $((2 * step - 1)) 'forward visual end cache extension'
+done
 CURSOR=800; _yt_chunk_cached_buffer='invalid'
+BUFFER=${(pl:1600::a --:)''}
 for (( step=1; step<=40; step++ )); do
     _yt-backward-word
     eq $CURSOR $((800 - 2 * step)) 'backward cache extension'

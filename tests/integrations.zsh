@@ -32,6 +32,11 @@ if [[ -n $autosuggestions ]]; then
     BUFFER=foo; CURSOR=3; POSTDISPLAY=' --bar'; KEYMAP=emacs
     _zsh_autosuggest_partial_accept
     [[ $BUFFER == 'foo --' && $POSTDISPLAY == bar && $CURSOR == 6 ]] || fail 'partial acceptance'
+    BUFFER=foo; CURSOR=3; POSTDISPLAY=' * bar'
+    _zsh_autosuggest_partial_accept
+    [[ $BUFFER == 'foo *' && $POSTDISPLAY == ' bar' && $CURSOR == 5 ]] || fail 'partial acceptance visual end'
+    _zsh_autosuggest_partial_accept
+    [[ $BUFFER == 'foo * bar' && -z $POSTDISPLAY && $CURSOR == 9 ]] || fail 'partial acceptance after visual end'
 fi
 # Refresh and history operations work with any subset of the dependencies.
 _yt-clear-highlighting

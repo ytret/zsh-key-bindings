@@ -317,9 +317,30 @@ function _yt-forward-word {
     (( CURSOR == $#BUFFER )) && return
     _yt-split-word-chunks
 
-    _yt-ensure-chunks-reach $((CURSOR + 1))
-    _yt-chunk-index-forward $CURSOR || return
-    CURSOR=$_yt_chunk_ends[reply[1]]
+    local position=$CURSOR raw_start raw_end visual_end
+    while (( position < $#BUFFER )); do
+        _yt-ensure-chunks-reach $((position + 1))
+        _yt-chunk-index-forward $position || return
+        raw_start=$_yt_chunk_starts[reply[1]]
+        raw_end=$_yt_chunk_ends[reply[1]]
+        visual_end=$raw_end
+
+        # Mirror backward movement's visual start by excluding trailing spaces.
+        while (( visual_end > raw_start )) && [[ ${BUFFER[visual_end]} == [[:space:]] ]]; do
+            ((visual_end--))
+        done
+
+        if (( CURSOR < visual_end )); then
+            CURSOR=$visual_end
+            return 0
+        fi
+
+        # Already at the visual end, or in its spaces: try the next chunk.
+        position=$raw_end
+    done
+
+    # Trailing whitespace must still allow movement to the buffer's end.
+    CURSOR=$#BUFFER
 }
 zle -N _yt-forward-word
 
