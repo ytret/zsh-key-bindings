@@ -8,7 +8,7 @@
 * `ALT-S` – toggle `sudo`
 * `ALT-E` – edit command in `$EDITOR`
 * `ALT-F` / `ALT-B` – move across alphanumeric and punctuation chunks
-* `ALT-D` – delete the next chunk
+* `ALT-D` – delete the next chunk, including leading whitespace
 * `ALT-L` – list the path under the cursor
 
 Regression checks (run from this directory):

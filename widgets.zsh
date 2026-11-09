@@ -325,11 +325,21 @@ zle -N _yt-forward-word
 
 function _yt-forward-kill-word {
     (( CURSOR == $#BUFFER )) && return
-    _yt-split-word-chunks
 
-    _yt-ensure-chunks-reach $((CURSOR + 1))
-    _yt-chunk-index-forward $CURSOR || return
-    _yt-kill-region-between "$CURSOR" "$_yt_chunk_ends[reply[1]]"
+    # Include leading whitespace with the next chunk, keeping the kill start.
+    local target=$CURSOR end=$#BUFFER
+    while (( target < $#BUFFER )) && [[ ${BUFFER[target+1]} == [[:space:]] ]]; do
+        ((target++))
+    done
+
+    if (( target < $#BUFFER )); then
+        _yt-split-word-chunks
+        _yt-ensure-chunks-reach $((target + 1))
+        _yt-chunk-index-forward $target || return
+        end=$_yt_chunk_ends[reply[1]]
+    fi
+
+    _yt-kill-region-between "$CURSOR" "$end"
     _yt-clear-highlighting
 }
 zle -N _yt-forward-kill-word

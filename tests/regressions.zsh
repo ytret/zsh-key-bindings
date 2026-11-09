@@ -198,9 +198,24 @@ deletion '"\' '' '"\'
 deletion 'foo---' 'foo' '---'
 deletion 'foo-' 'foo' '-'
 deletion 'foobar' '' foobar _yt-backward-kill-word
-BUFFER='foobar suffix'; CURSOR=3
-_yt-forward-kill-word
-eq "$BUFFER" 'foo suffix' 'forward kill inside seeded run'
-eq "$CUTBUFFER" bar 'forward kill text'
+function forward_deletion {
+    local original=$1 original_cursor=$2 expected=$3 killed=$4
+    BUFFER=$original; CURSOR=$original_cursor
+    _yt-forward-kill-word
+    eq "$BUFFER" "$expected" 'forward deletion buffer'
+    eq "$CUTBUFFER" "$killed" 'forward deletion kill ring text'
+    eq $CURSOR $original_cursor 'forward deletion cursor'
+    zle yank
+    eq "$BUFFER" "$original" 'forward deletion yank restores buffer'
+    eq $CURSOR $((original_cursor + $#killed)) 'forward deletion yank cursor'
+}
+forward_deletion 'brew search' 4 brew ' search'
+forward_deletion 'brew   search suffix' 4 'brew suffix' '   search'
+forward_deletion $'brew \tsearch' 4 brew $' \tsearch'
+forward_deletion 'brew --search' 4 brewsearch ' --'
+forward_deletion 'brew   ' 4 brew '   '
+forward_deletion '   ' 0 '' '   '
+forward_deletion 'foobar suffix' 3 'foo suffix' bar
+forward_deletion 'foo-bar' 3 foobar '-'
 
 print -- 'Widget regressions passed'
