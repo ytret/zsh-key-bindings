@@ -72,7 +72,7 @@ function tokens {
     BUFFER=$1
     shift
     _yt-parse-shell-arguments
-    eq $#_yt_arg_starts $# 'token count'
+    eq $#_yt_arg_starts $# "token count for ${(qqq)BUFFER}"
     local i=1 start end
     for expected in "$@"; do
         start=$_yt_arg_starts[i] end=$_yt_arg_ends[i]
@@ -102,6 +102,52 @@ tokens "echo \$'a\\' b' x" echo "\$'a\\' b'" x
 tokens 'echo $[1 + 2] x' echo '$[1 + 2]' x
 tokens 'echo foo\' echo 'foo\'
 tokens $'echo \\\n /tmp' echo /tmp
+tokens ''
+tokens $' \t\\\n '
+# Preserve complete shell words and the original operator spelling.
+tokens "echo \"\${x:-don't}\" next" echo "\"\${x:-don't}\"" next
+tokens 'echo $(case x in x) echo ok;; esac) next' echo '$(case x in x) echo ok;; esac)' next
+tokens 'echo $(case x in (x|y) case y in y) echo ok;; esac;; esac) next' echo '$(case x in (x|y) case y in y) echo ok;; esac;; esac)' next
+tokens 'ls *(.N) foo(bar|baz) <1-10> next' ls '*(.N)' 'foo(bar|baz)' '<1-10>' next
+tokens 'echo =(cat /tmp/a) next' echo '=(cat /tmp/a)' next
+tokens 'echo hi >!out >>&!err &! next &| last' echo hi '>!' out '>>&!' err '&!' next '&|' last
+tokens 'echo 2>out &>>log' echo '2>' out '&>>' log
+# Tokenizer output removes continuations but raw spans must retain them.
+tokens $'echo "ab\\\ncd" \'ab\\\ncd\' $\'ab\\\ncd\' x' echo $'"ab\\\ncd"' $'\'ab\\\ncd\'' $'$\'ab\\\ncd\'' x
+tokens $'echo ab\\\n\\cd x' echo $'ab\\\n\\cd' x
+tokens $'\\\n(echo x)\\\n;echo y' '(' echo x ')' ';' echo y
+tokens 'echo ${unfinished' echo '${unfinished'
+tokens 'echo $((1+' echo '$((1+'
+tokens 'ls *(N' ls '*(N'
+
+# Exercise consumers, including kill-ring contents and suffix preservation.
+for argument in '*(.N)' '<1-10>' '=(cat /tmp/a)' '$(case x in x) echo ok;; esac)' "\"\${x:-don't}\""; do
+    BUFFER="echo $argument next"; CURSOR=5
+    yt-forward-shell-argument
+    eq $CURSOR $((6 + $#argument)) 'forward complete shell argument'
+    CURSOR=$((5 + $#argument))
+    _yt-backward-shell-argument
+    eq $CURSOR 5 'backward complete shell argument'
+    CURSOR=$((5 + $#argument))
+    _yt-backward-kill-shell-argument
+    eq "$CUTBUFFER" "$argument" 'kill complete shell argument'
+    eq "$BUFFER" 'echo  next' 'argument deletion suffix'
+    BUFFER="echo $argument next"; CURSOR=5
+    _yt-kill-shell-argument
+    eq "$CUTBUFFER" "$argument" 'forward kill complete shell argument'
+    eq "$BUFFER" 'echo  next' 'forward argument deletion suffix'
+done
+BUFFER="echo \"\${x:-don't}\" next"; CURSOR=$#BUFFER
+_yt-backward-kill-shell-argument
+eq "$CUTBUFFER" next 'kill after quoted parameter expansion'
+eq "$BUFFER" "echo \"\${x:-don't}\" " 'preserve quoted parameter expansion'
+for operator in '&!' '&|'; do
+    BUFFER="echo hi $operator next"; CURSOR=$#BUFFER
+    _yt-sudo
+    eq "$BUFFER" "echo hi $operator sudo next" 'sudo after disown operator'
+    _yt-sudo
+    eq "$BUFFER" "echo hi $operator next" 'undo sudo after disown operator'
+done
 BUFFER=$'echo a\ncat b'; CURSOR=12
 _yt-sudo
 eq "$BUFFER" $'echo a\nsudo cat b' 'sudo on later line'

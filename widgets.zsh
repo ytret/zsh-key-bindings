@@ -650,7 +650,7 @@ function _yt-sudo {
 
     for (( i = $#_yt_arg_starts; i >= 1; i-- )); do
         word="${BUFFER[_yt_arg_starts[i]+1,_yt_arg_ends[i]]}"
-        if (( _yt_arg_ends[i] < CURSOR + 1 )) && [[ $word == ('|'|'||'|'|&'|';'|'&&'|'&'|$'\n') ]]; then
+        if (( _yt_arg_ends[i] < CURSOR + 1 )) && [[ $word == ('|'|'||'|'|&'|';'|'&&'|'&'|'&!'|'&|'|$'\n') ]]; then
             sep_end=$_yt_arg_ends[i]
             break
         fi
